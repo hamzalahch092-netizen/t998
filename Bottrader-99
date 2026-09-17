@@ -13,28 +13,42 @@ MAX_T=int(os.getenv("PO_MAXT",35))
 MAX_DD=float(os.getenv("PO_MDX",0.25))
 VOL_MIN=float(os.getenv("PO_VOL",12.0))
 INIT_B=float(os.getenv("PO_BANK",50))
-bank=INIT_B;n=0;cid=""
+bank=INIT_B;n=0;cid="";off=None
+
+print(f"BOOT | TOKEN={TOKEN[:15]}... | EMAIL={EMAIL}")
 
 async def tg(t):
-    if not cid:return
     try:
         async with aiohttp.ClientSession() as s:
-            await s.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-                json={"chat_id":cid,"text":t,"parse_mode":"HTML"})
-    except:pass
+            r=await s.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                json={"chat_id":cid,"text":t,"parse_mode":"HTML"},timeout=10)
+            j=await r.json()
+            print(f"TG_SEND: {j.get('ok')} | {t[:40]}")
+            return j.get("ok",False)
+    except Exception as e:
+        print(f"TG_ERR: {e}")
+        return False
 
 async def check():
-    global cid,bank,n
+    global cid,bank,n,off
     try:
+        url=f"https://api.telegram.org/bot{TOKEN}/getUpdates"
+        params={"offset":off+1,"timeout":0} if off is not None else {}
         async with aiohttp.ClientSession() as s:
-            r=await s.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates")
+            r=await s.get(url,params=params,timeout=10)
             j=(await r.json()).get("result",[])
+            if not j:
+                print("CHECK: no updates")
+                return True
             for m in j:
+                off=m["update_id"]
                 msg=m["message"]["text"].strip()
                 cid=m["chat"]["id"]
+                print(f"CMD: {msg} | cid={cid}")
                 if msg=="/start":
                     bank=INIT_B;n=0
-                    await tg(f"TRADER99 ONLINE | ${bank:.2f} | {ASSET.upper()} {TF_M}m")
+                    print("START | reset bank")
+                    await tg(f"TRADER99 ONLINE | ${bank:.2f} | {ASSET.upper()} {TF_M}m | conf>{CONF_T}")
                 elif msg=="/ping":
                     await tg(f"PONG | ${bank:.2f} | trades {n}/{MAX_T}")
                 elif msg=="/balance":
@@ -46,16 +60,31 @@ async def check():
                     bank=INIT_B;n=0
                     await tg(f"RESTARTED | ${bank:.2f}")
             return True
-    except:return True
+    except Exception as e:
+        print(f"CHECK_ERR: {e}")
+        return True
 
 async def main():
-    global cid
-    while not cid:
-        await check()
-        await asyncio.sleep(2)
+    global cid,off
+    print("WAITING FOR CHAT...")
+    try:
+        async with aiohttp.ClientSession() as s:
+            r=await s.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates?limit=1")
+            j=await r.json()
+            if j.get("ok"):
+                res=j.get("result",[])
+                if res:
+                    cid=res[-1]["chat"]["id"]
+                    off=res[-1]["update_id"]
+                    print(f"CID_FOUND: {cid}")
+                    await tg(f"TRADER99 ONLINE | ${bank:.2f} | {ASSET.upper()} {TF_M}m | conf>{CONF_T}")
+    except Exception as e:
+        print(f"INIT_ERR: {e}")
+
     while True:
         ok=await check()
-        if not ok:break
-        await asyncio.sleep(30)
+        if not ok:
+            break
+        await asyncio.sleep(5)
 
 asyncio.run(main())
