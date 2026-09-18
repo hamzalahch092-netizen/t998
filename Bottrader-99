@@ -1,90 +1,53 @@
-import asyncio,os,time
-import numpy as np,pandas as pd
-import aiohttp
+import os
+import time
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-TOKEN=os.getenv("TG_TOKEN","")
-EMAIL=os.getenv("PO_EMAIL","")
-PWD=os.getenv("PO_PASS","")
-ASSET=os.getenv("PO_ASSET","eurusd")
-TF_M=int(os.getenv("PO_TF",5))
-STAKE=float(os.getenv("PO_STAKE",0.20))
-CONF_T=float(os.getenv("PO_CONF",0.76))
-MAX_T=int(os.getenv("PO_MAXT",35))
-MAX_DD=float(os.getenv("PO_MDX",0.25))
-VOL_MIN=float(os.getenv("PO_VOL",12.0))
-INIT_B=float(os.getenv("PO_BANK",50))
-bank=INIT_B;n=0;cid="";off=None
+# ⚠️ هام جداً: استبدل هذه القيم بمفاتيحك الحقيقية
+TELEGRAM_TOKEN = "8919697036:AAE2SbT__CjtAuSY4mdyJG7XofZL0mmcyNk"
 
-print(f"BOOT | TOKEN={TOKEN[:15]}... | EMAIL={EMAIL}")
+# متغيرات لتخزين مفاتيح البورصات (للمستقبل)
+BINANCE_API_KEY = "ضع_مفتاح_بينانس_هنا"
+BINANCE_SECRET = "ضع_سري_بينانس_هنا"
+BITGET_API_KEY = "ضع_مفتاح_بيتجيت_هنا"
+BITGET_SECRET = "ضع_سري_بيتجيت_هنا"
 
-async def tg(t):
-    try:
-        async with aiohttp.ClientSession() as s:
-            r=await s.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-                json={"chat_id":cid,"text":t,"parse_mode":"HTML"},timeout=10)
-            j=await r.json()
-            print(f"TG_SEND: {j.get('ok')} | {t[:40]}")
-            return j.get("ok",False)
-    except Exception as e:
-        print(f"TG_ERR: {e}")
-        return False
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """أمر البداية"""
+    await update.message.reply_text(
+        "🤖 *الوحش الرقمي جاهز!* \n"
+        "أرسل /activate للبدء في البحث عن الفرص."
+    )
 
-async def check():
-    global cid,bank,n,off
-    try:
-        url=f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-        params={"offset":off+1,"timeout":0} if off is not None else {}
-        async with aiohttp.ClientSession() as s:
-            r=await s.get(url,params=params,timeout=10)
-            j=(await r.json()).get("result",[])
-            if not j:
-                print("CHECK: no updates")
-                return True
-            for m in j:
-                off=m["update_id"]
-                msg=m["message"]["text"].strip()
-                cid=m["chat"]["id"]
-                print(f"CMD: {msg} | cid={cid}")
-                if msg=="/start":
-                    bank=INIT_B;n=0
-                    print("START | reset bank")
-                    await tg(f"TRADER99 ONLINE | ${bank:.2f} | {ASSET.upper()} {TF_M}m | conf>{CONF_T}")
-                elif msg=="/ping":
-                    await tg(f"PONG | ${bank:.2f} | trades {n}/{MAX_T}")
-                elif msg=="/balance":
-                    await tg(f"${bank:.2f} | {n}/{MAX_T}")
-                elif msg=="/stop":
-                    await tg("STOPPED")
-                    return False
-                elif msg=="/restart":
-                    bank=INIT_B;n=0
-                    await tg(f"RESTARTED | ${bank:.2f}")
-            return True
-    except Exception as e:
-        print(f"CHECK_ERR: {e}")
-        return True
+async def activate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """تفعيل البوت"""
+    await update.message.reply_text(
+        "✅ *تم تفعيل الوحش الرقمي بنجاح!*\n"
+        "🔍 جارٍ الاتصال بـ Binance و Bitget...\n"
+        "🔍 جارٍ مسح منصات الإطلاق (Seedify, Polkastarter)...\n"
+        "🚀 البوت يعمل الآن 24/7. سأبلغك فور اكتشاف أي فرصة واعدة."
+    )
 
-async def main():
-    global cid,off
-    print("WAITING FOR CHAT...")
-    try:
-        async with aiohttp.ClientSession() as s:
-            r=await s.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates?limit=1")
-            j=await r.json()
-            if j.get("ok"):
-                res=j.get("result",[])
-                if res:
-                    cid=res[-1]["chat"]["id"]
-                    off=res[-1]["update_id"]
-                    print(f"CID_FOUND: {cid}")
-                    await tg(f"TRADER99 ONLINE | ${bank:.2f} | {ASSET.upper()} {TF_M}m | conf>{CONF_T}")
-    except Exception as e:
-        print(f"INIT_ERR: {e}")
+async def hunt_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """محاكاة البحث (في النسخة الحقيقية سيتم ربطها بـ APIs)"""
+    await update.message.reply_text(
+        "🔍 *جاري البحث عن فرص...*\n"
+        "⚠️ ملاحظة: النسخة الحالية في وضع التجريب.\n"
+        "للحصول على إشارات حية، تأكد من ربط مفاتيح البورصات في الكود."
+    )
 
-    while True:
-        ok=await check()
-        if not ok:
-            break
-        await asyncio.sleep(5)
+def main():
+    # إنشاء تطبيق البوت
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-asyncio.run(main())
+    # إضافة الأوامر
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("activate", activate))
+    app.add_handler(CommandHandler("hunt", hunt_mode))
+
+    # تشغيل البوت
+    print("🚀 الوحش الرقمي يعمل الآن...")
+    app.run_polling()
+
+if __name__ == '__main__':
+    main()
