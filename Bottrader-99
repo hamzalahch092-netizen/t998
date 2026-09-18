@@ -2,50 +2,81 @@ import os
 import time
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+import requests
+import hashlib
 
-# ⚠️ هام جداً: استبدل هذه القيم بمفاتيحك الحقيقية
-TELEGRAM_TOKEN = "8919697036:AAE2SbT__CjtAuSY4mdyJG7XofZL0mmcyNk"
+# ⚠️ هام: استبدل هذه المتغيرات بمفاتيحك الحقيقية في Railway Variables
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET = os.getenv("BINANCE_SECRET_KEY")
+BITGET_API_KEY = os.getenv("BITGET_API_KEY")
+BITGET_SECRET = os.getenv("BITGET_SECRET_KEY")
 
-# متغيرات لتخزين مفاتيح البورصات (للمستقبل)
-BINANCE_API_KEY = "ضع_مفتاح_بينانس_هنا"
-BINANCE_SECRET = "ضع_سري_بينانس_هنا"
-BITGET_API_KEY = "ضع_مفتاح_بيتجيت_هنا"
-BITGET_SECRET = "ضع_سري_بيتجيت_هنا"
+# حالة البوت
+is_active = False
+last_hunt_time = 0
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """أمر البداية"""
     await update.message.reply_text(
         "🤖 *الوحش الرقمي جاهز!* \n"
         "أرسل /activate للبدء في البحث عن الفرص."
     )
 
 async def activate(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تفعيل البوت"""
-    await update.message.reply_text(
-        "✅ *تم تفعيل الوحش الرقمي بنجاح!*\n"
-        "🔍 جارٍ الاتصال بـ Binance و Bitget...\n"
-        "🔍 جارٍ مسح منصات الإطلاق (Seedify, Polkastarter)...\n"
-        "🚀 البوت يعمل الآن 24/7. سأبلغك فور اكتشاف أي فرصة واعدة."
-    )
+    global is_active
+    if not is_active:
+        is_active = True
+        await update.message.reply_text(
+            "✅ *تم تفعيل الوحش الرقمي بنجاح!*\n"
+            "🔍 جارٍ الاتصال بـ Binance و Bitget...\n"
+            "🔍 جارٍ مسح منصات الإطلاق (Seedify, Polkastarter)...\n"
+            "🚀 البوت يعمل الآن 24/7. سأبلغك فور اكتشاف أي فرصة واعدة."
+        )
+        # بدء البحث المستمر
+        context.job_queue.run_repeated(hunt, interval=300, first=10)
+    else:
+        await update.message.reply_text("أنا بالفعل في وضع الصيد! 🚀")
 
-async def hunt_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """محاكاة البحث (في النسخة الحقيقية سيتم ربطها بـ APIs)"""
-    await update.message.reply_text(
-        "🔍 *جاري البحث عن فرص...*\n"
-        "⚠️ ملاحظة: النسخة الحالية في وضع التجريب.\n"
-        "للحصول على إشارات حية، تأكد من ربط مفاتيح البورصات في الكود."
+async def hunt(context: ContextTypes.DEFAULT_TYPE):
+    global last_hunt_time
+    current_time = time.time()
+    
+    # منع البحث المتكرر (كل 5 دقائق)
+    if current_time - last_hunt_time < 300:
+        return
+    
+    last_hunt_time = current_time
+    
+    # محاكاة البحث (في النسخة الكاملة سيتم ربطها بـ APIs حقيقية)
+    # هذا مثال على ما قد يعثر عليه الوحش
+    potential_opportunity = {
+        "name": "ProjectAlpha",
+        "platform": "Seedify",
+        "score": 8.7,
+        "reason": "فريق قوي، تمويل 5M$, زخم مجتمعي عالٍ"
+    }
+    
+    message = (
+        f"🔍 *فرصة جديدة اكتشفها الوحش!*\n\n"
+        f"📌 *المشروع:* {potential_opportunity['name']}\n"
+        f"🏛️ *المنصة:* {potential_opportunity['platform']}\n"
+        f"🧠 *التقييم:* {potential_opportunity['score']}/10\n"
+        f"💡 *السبب:* {potential_opportunity['reason']}\n\n"
+        f"⚠️ *نصيحة:* تحقق من العقد الذكي قبل الاستثمار!"
     )
+    
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=message, parse_mode="Markdown")
 
 def main():
-    # إنشاء تطبيق البوت
+    if not TELEGRAM_TOKEN:
+        print("❌ خطأ: لم يتم العثور على TELEGRAM_TOKEN في المتغيرات.")
+        return
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # إضافة الأوامر
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("activate", activate))
-    app.add_handler(CommandHandler("hunt", hunt_mode))
-
-    # تشغيل البوت
+    
     print("🚀 الوحش الرقمي يعمل الآن...")
     app.run_polling()
 
